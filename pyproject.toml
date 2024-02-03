@@ -22,7 +22,8 @@ classifiers = [
 dynamic = ["description"] 
 
 dependencies = [
-  "click"
+  "click",
+  "tqdm"
 ]
 
 [tool.flit.module]
@@ -33,14 +34,11 @@ dev = [
   "black",
   "bump2version",
   "coverage",
-  "devtools",
   "isort",
   "flake8",
   "flake8-length",
   "pdbpp",
   "pytest",
-  "python-box",
-  "toml",
   "tox"
 ]
 docs = [
