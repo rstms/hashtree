@@ -29,4 +29,9 @@ class HashDigest:
     def file_digest(self, filename):
         file = self.base_path / filename
         digest = self._hash(file.read_bytes()).hexdigest()
-        return f"{self.hash} (./{filename}) = {digest}"
+        filename=str(filename)
+        if filename.startswith('./'):
+            prefix = ""
+        else:
+            prefix="./"
+        return f"{self.hash} ({prefix}{filename}) = {digest}"
