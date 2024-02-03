@@ -1,6 +1,7 @@
 """hashtree command"""
 
 import atexit
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -24,7 +25,7 @@ def _ehandler(ctx, option, debug):
     ctx.obj["debug"] = debug
 
 
-HASH_CHOICES = list(HASHES) 
+HASH_CHOICES = list(HASHES)
 
 
 @click.command("hashtree", context_settings={"auto_envvar_prefix": "HASHTREE"})
@@ -146,7 +147,15 @@ def sort_file(filename):
         with Path(filename).open("r") as ifp:
             subprocess.run(["sort"], stdin=ifp, stdout=ofp, check=True, text=True)
         ofp.close()
-        Path(ofp.name).rename(filename)
+        tempfile = Path(ofp.name)
+        try:
+            tempfile.rename(filename)
+        except OSError as exc:
+            if exc.errno == 18:  # Invalid cross-device link
+                shutil.copyfile(tempfile, filename)
+                tempfile.unlink()
+            else:
+                raise
 
 
 def find_files(base, filename):
