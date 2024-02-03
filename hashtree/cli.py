@@ -176,4 +176,4 @@ def reaper(filename):
 
 
 if __name__ == "__main__":
-    sys.exit(hashtree())  # pragma: no cover
+    sys.exit(cli())  # pragma: no cover
