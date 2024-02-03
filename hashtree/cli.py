@@ -24,7 +24,7 @@ def _ehandler(ctx, option, debug):
     ctx.obj["debug"] = debug
 
 
-HASH_CHOICES = list(HASHES) + ["none"]
+HASH_CHOICES = list(HASHES) 
 
 
 @click.command("hashtree", context_settings={"auto_envvar_prefix": "HASHTREE"})

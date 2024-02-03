@@ -5,7 +5,7 @@
 import hashlib
 from pathlib import Path
 
-HASHES = hashlib.algorithms_guaranteed
+HASHES = list(set(hashlib.algorithms_guaranteed).difference({"shake_128", "shake_256"}))
 
 DEFAULT_HASH = "sha256"
 
