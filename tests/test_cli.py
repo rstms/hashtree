@@ -1,14 +1,14 @@
 # cli tests
 
 import os
+import re
 import shlex
 
 import pytest
-
+from click.testing import CliRunner
 
 import hashtree
 from hashtree import __version__, cli
-from click.testing import CliRunner
 
 
 def test_version():
@@ -17,12 +17,13 @@ def test_version():
     assert __version__
     assert isinstance(__version__, str)
 
+
 @pytest.fixture
 def run():
     runner = CliRunner()
 
     env = os.environ.copy()
-    env['TESTING'] = '1'
+    env["TESTING"] = "1"
 
     def _run(cmd, **kwargs):
         assert_exit = kwargs.pop("assert_exit", 0)
@@ -44,13 +45,18 @@ def run():
 
     return _run
 
+
 def test_cli_no_args(run):
     result = run([])
-    assert "Usage:" in result.output
+    # SHA256 (VERSION) = 4cac276b6ec5d4c71cd96ca2e7b762eb125439adbc8721de5613106d1345fe2d
+    for line in result.output.strip().split("\n"):
+        assert re.match(r"^SHA256 \([^)]+\) = [0-9a-f]+$", line)
+
 
 def test_cli_help(run):
-    result = run(['--help'])
-    assert 'Show this message and exit.' in result.output
+    result = run(["--help"])
+    assert "Show this message and exit." in result.output
+
 
 def test_cli_exception(run):
 
@@ -77,4 +83,4 @@ def test_cli_exit(run):
     result = run(["--help"], assert_exit=0)
     assert result
     with pytest.raises(AssertionError):
-        run(['--help'], assert_exit=-1)
+        run(["--help"], assert_exit=-1)

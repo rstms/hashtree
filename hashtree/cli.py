@@ -1,5 +1,6 @@
 """hashtree command"""
 
+import atexit
 import subprocess
 import sys
 from pathlib import Path
@@ -50,16 +51,16 @@ HASH_CHOICES = list(HASHES) + ["none"]
     default=DEFAULT_HASH,
     help="select checksum hash",
 )
-@click.option("-p/-P", "--progress/--no-progress", is_flag=True, default=True, help="control animated progress display")
+@click.option("-p/-P", "--progress/--no-progress", is_flag=True, default=True, help="animated progress display")
 @click.option("-a", "--ascii", is_flag=True, help="ASCII progress bar")
-@click.option("-f", "--find", is_flag=True, help="use find command to auto-generate input file")
-@click.option("-s/-S", "--sort/--no-sort", is_flag=True, help="sort output files")
+@click.option("-f", "--find", is_flag=True, help="use 'find BASE_DIR --type f' to generate file list")
+@click.option("-s/-S", "--sort/--no-sort", is_flag=True, default=True, help="sort generated files")
 @click.option(
     "-b",
-    "--base-directory",
+    "--base-dir",
     type=click.Path(file_okay=False, readable=True),
     default=".",
-    help="base directory for relative file list",
+    help="base directory for file list",
 )
 @click.argument("INFILE", type=click.Path(dir_okay=False), default="-")
 @click.argument("OUTFILE", type=click.Path(dir_okay=False, writable=True), default="-")
@@ -68,7 +69,7 @@ def cli(
     ctx,
     debug,
     shell_completion,
-    base_directory,
+    base_dir,
     ascii,
     find,
     hash,
@@ -79,25 +80,36 @@ def cli(
 ):
     """generate hash digest for list of files"""
 
-    return hashtree(base_directory=base_directory, ascii=ascii, find=find, hash=hash, sort=sort, progress=progress, infile=infile, outfile=outfile)
+    return hashtree(
+        base_dir,
+        infile,
+        outfile,
+        ascii=ascii,
+        find=find,
+        hash=hash,
+        sort=sort,
+        progress=progress,
+    )
 
 
 def hashtree(
-    base_directory,
-    ascii,
-    find,
-    hash,
-    sort,
-    progress,
+    base_dir,
     infile,
     outfile,
+    *,
+    ascii=None,
+    find=None,
+    hash=None,
+    sort=None,
+    progress=None,
 ):
-    base = Path(base_directory)
+    base = Path(base_dir)
 
-    if outfile == '-':
+    if infile == "-" and outfile == "-":
+        find = True
+
+    if outfile == "-":
         progress = False
-        if sort:
-            raise click.ClickException('cannot use --sort with output to stdout')
 
     if find:
         infile = find_files(base, infile)
@@ -109,9 +121,9 @@ def hashtree(
     kwargs = {}
 
     if ascii:
-        kwargs['ascii'] = True
+        kwargs["ascii"] = True
     if not progress:
-        kwargs['disable'] = True
+        kwargs["disable"] = True
 
     with CLIO(infile, outfile) as clio:
         with ProgressReader(clio.ifp, **kwargs) as reader:
@@ -121,14 +133,14 @@ def hashtree(
                 digest = hasher.file_digest(filename)
                 clio.ofp.write(digest + "\n")
 
-    if sort:
+    if sort and outfile != "-":
         sort_file(outfile)
 
 
 def sort_file(filename):
 
     if filename in ["-", None]:
-        raise RuntimeError
+        raise click.ClickException("cannot sort stdin/stdout")
 
     with NamedTemporaryFile(delete=False, dir=".") as ofp:
         with Path(filename).open("r") as ifp:
@@ -140,13 +152,18 @@ def sort_file(filename):
 def find_files(base, filename):
 
     if filename in [".", "-", None]:
-        filename = NamedTemporaryFile(delete=False, dir=".").name
-        click.echo(f"file list: {filename}")
+        filename = NamedTemporaryFile(delete=False, dir=".", prefix="hashtree_file_list").name
+        atexit.register(reaper, filename)
 
     with Path(filename).open("w") as ofp:
         subprocess.run(["find", ".", "-type", "f"], cwd=str(base), stdout=ofp, check=True, text=True)
 
     return filename
+
+
+def reaper(filename):
+    """delete a file"""
+    Path(filename).unlink()
 
 
 if __name__ == "__main__":

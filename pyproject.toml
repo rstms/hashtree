@@ -39,6 +39,7 @@ dev = [
   "flake8-length",
   "pdbpp",
   "pytest",
+  "pytest-datadir",
   "tox"
 ]
 docs = [
