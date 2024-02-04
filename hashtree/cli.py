@@ -55,7 +55,7 @@ DEFAULT_SORT_ARGS = "-ifdk1.1"
     default=DEFAULT_HASH,
     help="select checksum hash",
 )
-@click.option("-p/-P", "--progress/--no-progress", is_flag=True, default=True, help="show/hide progress bar")
+@click.option("-p/-P", "--progress/--no-progress", is_flag=True, help="show/hide progress bar")
 @click.option("-a", "--ascii", is_flag=True, help="ASCII progress bar")
 @click.option("-f/-F", "--find/--no-find", is_flag=True, default=True, help="generate file list with 'find'")
 @click.option(
@@ -121,7 +121,7 @@ def hashtree(
     if sort_args is None:
         sort_args = DEFAULT_SORT_ARGS
 
-    if is_stdio(outfile):
+    if progress is None and is_stdio(outfile):
         progress = False
 
     if find:
@@ -143,8 +143,8 @@ def hashtree(
 
     if ascii:
         progress_kwargs["ascii"] = True
-    if not progress:
-        progress_kwargs["disable"] = True
+    if progress is not None:
+        progress_kwargs["disable"] = not progress
 
     generate_hash_digests(base, infile, outfile, hash, progress_kwargs)
 
