@@ -57,6 +57,7 @@ DEFAULT_SORT_ARGS = "-ifdk1.1"
 )
 @click.option("-p/-P", "--progress/--no-progress", is_flag=True, help="show/hide progress bar")
 @click.option("-a", "--ascii", is_flag=True, help="ASCII progress bar")
+@click.option("-w", "--width", type=int, help="progress bar width")
 @click.option("-f/-F", "--find/--no-find", is_flag=True, default=True, help="generate file list with 'find'")
 @click.option(
     "-s/-S", "--sort-files/--no-sort-files", is_flag=True, default=True, help="sort input/generated file list"
@@ -85,6 +86,7 @@ def cli(
     sort_output,
     sort_args,
     progress,
+    width,
     infile,
     outfile,
 ):
@@ -101,6 +103,7 @@ def cli(
         sort_output=sort_output,
         sort_args=sort_args,
         progress=progress,
+        width=width
     )
 
 
@@ -116,6 +119,7 @@ def hashtree(
     sort_output=False,
     sort_args=None,
     progress=False,
+    width=None,
 ):
     base = Path(base_dir)
     if sort_args is None:
@@ -145,6 +149,8 @@ def hashtree(
         progress_kwargs["ascii"] = True
     if progress is not None:
         progress_kwargs["disable"] = not progress
+    if width is not None:
+        progress_kwargs["ncols"] = width
 
     generate_hash_digests(base, infile, outfile, hash, progress_kwargs)
 
