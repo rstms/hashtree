@@ -9,8 +9,6 @@ Welcome to hashtree's documentation!
    cli
    installation
    modules
-   contributing
-   history
 
 Indices and tables
 ==================

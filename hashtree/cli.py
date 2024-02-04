@@ -52,10 +52,13 @@ HASH_CHOICES = list(HASHES)
     default=DEFAULT_HASH,
     help="select checksum hash",
 )
-@click.option("-p/-P", "--progress/--no-progress", is_flag=True, default=True, help="animated progress display")
+@click.option("-p/-P", "--progress/--no-progress", is_flag=True, default=True, help="show/hide progress bar")
 @click.option("-a", "--ascii", is_flag=True, help="ASCII progress bar")
-@click.option("-f", "--find", is_flag=True, help="use 'find BASE_DIR --type f' to generate file list")
-@click.option("-s/-S", "--sort/--no-sort", is_flag=True, default=True, help="sort generated files")
+@click.option("-f/-F", "--find/--no-find", is_flag=True, default=True, help="generate file list with 'find'")
+@click.option(
+    "-s/-S", "--sort-files/--no-sort-files", is_flag=True, default=True, help="sort input/generated file list"
+)
+@click.option("-o/-O", "--sort-output/--no-sort-output", is_flag=True, default=False, help="sort output with 'sort'")
 @click.option(
     "-b",
     "--base-dir",
@@ -74,7 +77,8 @@ def cli(
     ascii,
     find,
     hash,
-    sort,
+    sort_files,
+    sort_output,
     progress,
     infile,
     outfile,
@@ -88,7 +92,8 @@ def cli(
         ascii=ascii,
         find=find,
         hash=hash,
-        sort=sort,
+        sort_files=sort_files,
+        sort_output=sort_output,
         progress=progress,
     )
 
@@ -98,51 +103,93 @@ def hashtree(
     infile,
     outfile,
     *,
-    ascii=None,
-    find=None,
+    ascii=False,
+    find=True,
     hash=None,
-    sort=None,
-    progress=None,
+    sort_files=True,
+    sort_output=False,
+    progress=False,
 ):
     base = Path(base_dir)
 
-    if infile == "-" and outfile == "-":
-        find = True
-
-    if outfile == "-":
+    if is_stdio(outfile):
         progress = False
 
     if find:
         infile = find_files(base, infile)
-        if sort:
-            sort_file(infile)
+    elif is_stdio(infile):
+        infile = spool_stdin()
 
-    hasher = HashDigest(base, hash)
+    if sort_files:
+        sort_file(infile)
 
-    kwargs = {}
+    # if sorting output, redirect to tempfile
+    if sort_output:
+        sorted_outfile = outfile
+        outfile = create_tempfile()
+    else:
+        sorted_outfile = None
+
+    progress_kwargs = {}
 
     if ascii:
-        kwargs["ascii"] = True
+        progress_kwargs["ascii"] = True
     if not progress:
-        kwargs["disable"] = True
+        progress_kwargs["disable"] = True
 
+    generate_hash_digests(base, infile, outfile, hash, progress_kwargs)
+
+    if sorted_outfile:
+        write_sorted_output(outfile, sorted_outfile)
+
+
+def generate_hash_digests(base, infile, outfile, hash, progress_kwargs):
+    hasher = HashDigest(base, hash)
     with CLIO(infile, outfile) as clio:
-        with ProgressReader(clio.ifp, **kwargs) as reader:
+        with ProgressReader(clio.ifp, **progress_kwargs) as reader:
             for filename in reader.readlines():
                 if filename.startswith(str(base)):
                     filename = Path(filename).relative_to(base)
                 digest = hasher.file_digest(filename)
                 clio.ofp.write(digest + "\n")
 
-    if sort and outfile != "-":
-        sort_file(outfile)
+
+def write_sorted_output(spool, outfile):
+    sort_file(spool)
+    with Path(spool).open("r") as ifp:
+        if is_stdio(outfile):
+            copy_stream(ifp, sys.stdout)
+        else:
+            with Path(outfile).open("w") as ofp:
+                copy_stream(ifp, ofp)
+
+
+def copy_stream(in_stream, out_stream):
+    while True:
+        buf = in_stream.read()
+        if buf:
+            out_stream.write(buf)
+        else:
+            return
+
+
+def spool_stdin():
+    tempfile = create_tempfile()
+    with Path(tempfile).open("w") as ofp:
+        copy_stream(sys.stdin, ofp)
+    return tempfile
+
+
+def is_stdio(filename):
+    return filename in ("-", None)
 
 
 def sort_file(filename):
 
-    if filename in ["-", None]:
-        raise click.ClickException("cannot sort stdin/stdout")
+    if is_stdio(filename):
+        raise RuntimeError("cannot sort stdio")
 
+    # use system sort to handle huge streams
     with NamedTemporaryFile(delete=False, dir=".") as ofp:
         with Path(filename).open("r") as ifp:
             subprocess.run(["sort"], stdin=ifp, stdout=ofp, check=True, text=True)
@@ -158,11 +205,16 @@ def sort_file(filename):
                 raise
 
 
+def create_tempfile():
+    filename = NamedTemporaryFile(delete=False, dir=".", prefix="hashtree_file_list").name
+    atexit.register(reaper, filename)
+    return filename
+
+
 def find_files(base, filename):
 
     if filename in [".", "-", None]:
-        filename = NamedTemporaryFile(delete=False, dir=".", prefix="hashtree_file_list").name
-        atexit.register(reaper, filename)
+        filename = create_tempfile()
 
     with Path(filename).open("w") as ofp:
         subprocess.run(["find", ".", "-type", "f"], cwd=str(base), stdout=ofp, check=True, text=True)
