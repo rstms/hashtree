@@ -6,8 +6,10 @@ requirements.txt: pyproject.toml
 requirements-dev.txt: pyproject.toml
 	tq -r '.project["optional-dependencies"].dev|.[]' $< >$@
 
-docs/requirements.txt: pyproject.toml
+docs/requirements.txt: pyproject.toml requirements.txt
 	[ -e docs ] && tq -r '.project["optional-dependencies"].docs|.[]' $< >$@ || true
+	cat requirements.txt >>$@
+
 
 requirements: requirements.txt requirements-dev.txt docs/requirements.txt
 
