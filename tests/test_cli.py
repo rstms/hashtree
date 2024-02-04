@@ -12,7 +12,7 @@ from click.testing import CliRunner
 
 import hashtree
 from hashtree import __version__, cli
-from hashtree.cli import DEFAULT_SORT_KEY
+from hashtree.cli import DEFAULT_SORT_ARGS
 from hashtree.hash import DEFAULT_HASH
 
 
@@ -48,7 +48,9 @@ def shellsorted(lines):
         ifp.write("\n".join(lines) + "\n")
         ifp.flush()
         ifp.seek(0)
-        subprocess.run(["sort", "-k", DEFAULT_SORT_KEY], stdin=ifp, stdout=ofp, text=True, check=True)
+        cmd = shlex.split(DEFAULT_SORT_ARGS)
+        cmd.insert(0, "sort")
+        subprocess.run(cmd, stdin=ifp, stdout=ofp, text=True, check=True)
         ofp.close()
         output = fstrs(ofp.name)
     return output

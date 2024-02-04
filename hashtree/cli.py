@@ -1,6 +1,7 @@
 """hashtree command"""
 
 import atexit
+import shlex
 import shutil
 import subprocess
 import sys
@@ -27,7 +28,7 @@ def _ehandler(ctx, option, debug):
 
 HASH_CHOICES = list(HASHES)
 
-DEFAULT_SORT_KEY = "1.1"
+DEFAULT_SORT_ARGS = "-ifdk1.1"
 
 
 @click.command("hashtree", context_settings={"auto_envvar_prefix": "HASHTREE", "show_default": True})
@@ -61,7 +62,7 @@ DEFAULT_SORT_KEY = "1.1"
     "-s/-S", "--sort-files/--no-sort-files", is_flag=True, default=True, help="sort input/generated file list"
 )
 @click.option("-o/-O", "--sort-output/--no-sort-output", is_flag=True, default=False, help="sort output with 'sort'")
-@click.option("-k", "--sort-key", default=DEFAULT_SORT_KEY, help="sort key (sort -k KEY)")
+@click.option("-k", "--sort-args", default=DEFAULT_SORT_ARGS, help="args passed to sort")
 @click.option(
     "-b",
     "--base-dir",
@@ -82,7 +83,7 @@ def cli(
     hash,
     sort_files,
     sort_output,
-    sort_key,
+    sort_args,
     progress,
     infile,
     outfile,
@@ -98,7 +99,7 @@ def cli(
         hash=hash,
         sort_files=sort_files,
         sort_output=sort_output,
-        sort_key=sort_key,
+        sort_args=sort_args,
         progress=progress,
     )
 
@@ -113,12 +114,12 @@ def hashtree(
     hash=None,
     sort_files=True,
     sort_output=False,
-    sort_key=None,
+    sort_args=None,
     progress=False,
 ):
     base = Path(base_dir)
-    if sort_key is None:
-        sort_key = DEFAULT_SORT_KEY
+    if sort_args is None:
+        sort_args = DEFAULT_SORT_ARGS
 
     if is_stdio(outfile):
         progress = False
@@ -129,7 +130,7 @@ def hashtree(
         infile = spool_stdin()
 
     if sort_files:
-        sort_file(infile, sort_key)
+        sort_file(infile, sort_args)
 
     # if sorting output, redirect to tempfile
     if sort_output:
@@ -148,7 +149,7 @@ def hashtree(
     generate_hash_digests(base, infile, outfile, hash, progress_kwargs)
 
     if sorted_outfile:
-        write_sorted_output(outfile, sorted_outfile, sort_key)
+        write_sorted_output(outfile, sorted_outfile, sort_args)
 
 
 def generate_hash_digests(base, infile, outfile, hash, progress_kwargs):
@@ -162,8 +163,8 @@ def generate_hash_digests(base, infile, outfile, hash, progress_kwargs):
                 clio.ofp.write(digest + "\n")
 
 
-def write_sorted_output(spool, outfile, sort_key):
-    sort_file(spool, sort_key)
+def write_sorted_output(spool, outfile, sort_args):
+    sort_file(spool, sort_args)
     with Path(spool).open("r") as ifp:
         if is_stdio(outfile):
             copy_stream(ifp, sys.stdout)
@@ -192,15 +193,18 @@ def is_stdio(filename):
     return filename in ("-", None)
 
 
-def sort_file(filename, sort_key):
+def sort_file(filename, sort_args):
 
     if is_stdio(filename):
         raise RuntimeError("cannot sort stdio")
 
+    cmd = shlex.split(sort_args)
+    cmd.insert(0, "sort")
+
     # use system sort to handle huge streams
     with NamedTemporaryFile(delete=False, dir=".") as ofp:
         with Path(filename).open("r") as ifp:
-            subprocess.run(["sort", "-k", sort_key], stdin=ifp, stdout=ofp, check=True, text=True)
+            subprocess.run(cmd, stdin=ifp, stdout=ofp, check=True, text=True)
         ofp.close()
         tempfile = Path(ofp.name)
         try:
